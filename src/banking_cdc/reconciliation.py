@@ -54,6 +54,12 @@ def reconcile_target(target: DataFrame, changes: DataFrame, accounts: DataFrame)
     orphans = target.join(accounts, "account_id", "left_anti").count()
     results.append(_result("no_orphan_accounts", "CRITICAL", orphans == 0, 0, orphans))
 
+    unknown_codes = target.filter(
+        ~F.col("txn_type").isin("DEBIT", "CREDIT") | ~F.col("status").isin("POSTED", "PENDING", "REVERSED")
+    ).count()
+    results.append(_result("known_txn_codes", "CRITICAL", unknown_codes == 0, 0, unknown_codes,
+                           "an unexpected type or status would be miscounted in daily balances"))
+
     # every distinct change in today's increment must be present in the target with the same version
     missing = changes.select("txn_id", "updated_at").join(
         target.select("txn_id", "updated_at"), ["txn_id", "updated_at"], "left_anti"

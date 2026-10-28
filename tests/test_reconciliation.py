@@ -31,3 +31,12 @@ def test_target_checks_catch_duplicates_and_orphans(spark):
     assert not results["no_duplicate_txn_ids"].passed
     assert not results["no_orphan_accounts"].passed and results["no_orphan_accounts"].actual == "1"
     assert results["no_null_keys"].passed
+
+def test_unknown_transaction_codes_are_blocked(spark):
+    target = incremental.typed(spark.createDataFrame(ROWS + [
+        ("T3", "A1", "FEE", "2.00", "USD", "POSTED", "2026-01-01T12:00:00", "2026-01-01T12:00:00")], COLS))
+    accounts = spark.createDataFrame([("A1",), ("A2",)], "account_id string")
+    results = {r.check: r for r in reconciliation.reconcile_target(target, target.limit(0), accounts)}
+    assert not results["known_txn_codes"].passed and results["known_txn_codes"].actual == "1"
+    with pytest.raises(ReconciliationError, match="known_txn_codes"):
+        reconciliation.assert_passed(list(results.values()))

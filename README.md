@@ -24,7 +24,7 @@ flowchart LR
 
 ## What makes it production-grade
 
-- **Two reconciliation gates.** The extract is checked against the source system's control totals (record count and amount sum) before loading. The target is then checked for duplicate transaction IDs, null keys, orphan accounts, and whether every change in the increment actually landed.
+- **Two reconciliation gates.** The extract is checked against the source system's control totals (record count and amount sum) before loading. The target is then checked for duplicate transaction IDs, null keys, orphan accounts, unknown transaction types or statuses, and whether every change in the increment actually landed.
 - **Out-of-order safe.** The MERGE only updates a transaction when the incoming `updated_at` is newer, so replayed or late extracts can never overwrite a newer status (unit tested).
 - **CDC semantics.** Pending transactions settle or reverse on later days; those updates are merged in place instead of appended, so the table always holds one current version per transaction.
 - **Restartable.** The watermark lives in a control table and advances only after a successful, reconciled load. A failed day can be re-run safely.
@@ -34,9 +34,9 @@ flowchart LR
 
 | Business date | Extract rows (incl. updates and re-sent dupes) | Changes applied | Target rows | Checks passed |
 |---|---|---|---|---|
-| 2026-01-01 | 4,040 | 4,000 | 4,000 | 8 / 8 |
-| 2026-01-02 | 4,355 | 4,315 | 8,000 | 8 / 8 |
-| 2026-01-03 | 4,480 | 4,440 | 12,000 | 8 / 8 |
+| 2026-01-01 | 4,040 | 4,000 | 4,000 | 9 / 9 |
+| 2026-01-02 | 4,355 | 4,315 | 8,000 | 9 / 9 |
+| 2026-01-03 | 4,480 | 4,440 | 12,000 | 9 / 9 |
 
 Updates to earlier transactions are merged in place, so the target grows by exactly 4,000 new transactions per day. Reconciliation log for 2026-01-03:
 
@@ -47,6 +47,7 @@ Updates to earlier transactions are merged in place, so the target grows by exac
 | no_duplicate_txn_ids | CRITICAL | PASS | 0 | 0 |
 | no_null_keys | CRITICAL | PASS | 0 | 0 |
 | no_orphan_accounts | CRITICAL | PASS | 0 | 0 |
+| known_txn_codes | CRITICAL | PASS | 0 | 0 |
 | all_changes_applied | CRITICAL | PASS | 0 | 0 |
 | positive_amounts | WARNING | PASS | 0 | 0 |
 | no_stale_pending | WARNING | PASS | 0 | 0 |
